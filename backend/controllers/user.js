@@ -6,7 +6,7 @@ import { inngest } from "../inngest/client.js";
 export const signup = async (req, res) => {
   const { email, password, skills = [] } = req.body;
   try {
-    const hashed = bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, 10);
     const user = await User.create({ email, password: hashed, skills });
 
     await inngest.send({
@@ -32,7 +32,7 @@ export const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const user = User.findOne({ email });
+    const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ error: "User not found" });
 
     const isMatch = await bcrypt.compare(password, user.password);
