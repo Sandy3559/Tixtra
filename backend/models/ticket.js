@@ -1,3 +1,4 @@
+// backend/models/ticket.js (UPDATED)
 import mongoose from 'mongoose';
 
 const ticketSchema = new mongoose.Schema({
@@ -36,6 +37,11 @@ const ticketSchema = new mongoose.Schema({
     lastUpdatedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
+        default: null
+    },
+    solutionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Solution",
         default: null
     },
     deadline: {
@@ -107,6 +113,36 @@ const ticketSchema = new mongoose.Schema({
         max: 5,
         default: null
     },
+    isRated: {
+        type: Boolean,
+        default: false
+    },
+    ratingId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Rating",
+        default: null
+    },
+    needsFollowUp: {
+        type: Boolean,
+        default: false
+    },
+    followUpNotes: {
+        type: String,
+        default: ""
+    },
+    escalated: {
+        type: Boolean,
+        default: false
+    },
+    escalatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null
+    },
+    escalationReason: {
+        type: String,
+        default: ""
+    },
     createdAt: { 
         type: Date, 
         default: Date.now 
@@ -116,6 +152,14 @@ const ticketSchema = new mongoose.Schema({
         default: Date.now
     },
     completedAt: {
+        type: Date,
+        default: null
+    },
+    assignedAt: {
+        type: Date,
+        default: null
+    },
+    firstResponseAt: {
         type: Date,
         default: null
     }
@@ -130,6 +174,8 @@ ticketSchema.index({ createdBy: 1, status: 1 });
 ticketSchema.index({ assignedTo: 1, status: 1 });
 ticketSchema.index({ status: 1, priority: 1 });
 ticketSchema.index({ createdAt: -1 });
+ticketSchema.index({ assignedTo: 1, createdAt: -1 });
+ticketSchema.index({ relatedSkills: 1 });
 
 // Virtual for ticket age in days
 ticketSchema.virtual('ageInDays').get(function() {
@@ -144,13 +190,34 @@ ticketSchema.virtual('timeToCompletion').get(function() {
     return null;
 });
 
-// Pre-save middleware to update lastUpdatedAt
+// Virtual for time to first response
+ticketSchema.virtual('timeToFirstResponse').get(function() {
+    if (this.firstResponseAt) {
+        return Math.floor((this.firstResponseAt - this.createdAt) / (1000 * 60 * 60));
+    }
+    return null;
+});
+
+// Virtual for response time category
+ticketSchema.virtual('responseTimeCategory').get(function() {
+    const hours = this.timeToFirstResponse;
+    if (!hours) return 'pending';
+    if (hours <= 2) return 'excellent';
+    if (hours <= 8) return 'good';
+    if (hours <= 24) return 'average';
+    return 'slow';
+});
+
+// Pre-save middleware to update timestamps
 ticketSchema.pre('save', function(next) {
     if (this.isModified() && !this.isNew) {
         this.lastUpdatedAt = Date.now();
     }
     if (this.isModified('status') && this.status === 'COMPLETED' && !this.completedAt) {
         this.completedAt = Date.now();
+    }
+    if (this.isModified('assignedTo') && this.assignedTo && !this.assignedAt) {
+        this.assignedAt = Date.now();
     }
     next();
 });
@@ -164,6 +231,12 @@ ticketSchema.pre('findOneAndUpdate', function(next) {
     if (update.status === 'COMPLETED') {
         this.set({ completedAt: Date.now() });
     }
+    
+    // Set assignedAt when assignedTo is set
+    if (update.assignedTo && !update.assignedAt) {
+        this.set({ assignedAt: Date.now() });
+    }
+    
     next();
 });
 

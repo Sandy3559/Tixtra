@@ -1,3 +1,4 @@
+// frontend/src/main.jsx (UPDATED)
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -7,10 +8,17 @@ import Tickets from './pages/tickets.jsx'
 import TicketDetailsPage from './pages/ticket.jsx'
 import Login from './pages/login.jsx'
 import Signup from './pages/signup.jsx'
+import RoleSelection from './pages/role-selection.jsx'
 import Admin from './pages/admin.jsx'
+import ModeratorDashboard from './pages/moderator-dashboard.jsx'
 import Navbar from './components/navbar.jsx'
 import ErrorBoundary from './components/error-boundary.jsx'
 import NotFound from './pages/not-found.jsx'
+
+// Additional pages for solution management
+import ModeratorTicketDetails from './pages/moderator-ticket-details.jsx'
+import SolutionPage from './pages/solution-page.jsx'
+import RatingPage from './pages/rating-page.jsx'
 
 // Toast notification component
 function ToastContainer() {
@@ -28,8 +36,20 @@ function ToastContainer() {
 // Global error handler for unhandled promises
 window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled promise rejection:', event.reason);
-  // You could show a toast notification here
 });
+
+// Helper function to show toast messages
+window.showToast = (message, type = 'info') => {
+  const toast = document.getElementById('toast');
+  const toastMessage = document.getElementById('toast-message');
+  if (toast && toastMessage) {
+    const alert = toast.querySelector('.alert');
+    alert.className = `alert alert-${type}`;
+    toastMessage.textContent = message;
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 3000);
+  }
+};
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -40,6 +60,10 @@ createRoot(document.getElementById('root')).render(
           <ToastContainer />
           <main className="pb-4">
             <Routes>
+              {/* Role Selection */}
+              <Route path="/role-selection" element={<RoleSelection />} />
+
+              {/* User Routes */}
               <Route
                 path="/"
                 element={
@@ -59,6 +83,63 @@ createRoot(document.getElementById('root')).render(
               />
 
               <Route
+                path="/tickets/:id/solution"
+                element={
+                  <CheckAuth protected={true}>
+                    <SolutionPage />
+                  </CheckAuth>
+                }
+              />
+
+              <Route
+                path="/tickets/:id/rate"
+                element={
+                  <CheckAuth protected={true}>
+                    <RatingPage />
+                  </CheckAuth>
+                }
+              />
+
+              {/* Moderator Routes */}
+              <Route
+                path="/moderator-dashboard"
+                element={
+                  <CheckAuth protected={true}>
+                    <ModeratorDashboard />
+                  </CheckAuth>
+                }
+              />
+
+              <Route
+                path="/moderator/tickets/:id"
+                element={
+                  <CheckAuth protected={true}>
+                    <ModeratorTicketDetails />
+                  </CheckAuth>
+                }
+              />
+
+              <Route
+                path="/moderator/tickets/:id/solution"
+                element={
+                  <CheckAuth protected={true}>
+                    <SolutionPage />
+                  </CheckAuth>
+                }
+              />
+
+              {/* Admin Routes */}
+              <Route
+                path="/admin"
+                element={
+                  <CheckAuth protected={true}>
+                    <Admin />
+                  </CheckAuth>
+                }
+              />
+
+              {/* Auth Routes */}
+              <Route
                 path='/login'
                 element={
                   <CheckAuth protected={false}>
@@ -72,15 +153,6 @@ createRoot(document.getElementById('root')).render(
                 element={
                   <CheckAuth protected={false}>
                     <Signup />
-                  </CheckAuth>
-                }
-              />
-              
-              <Route
-                path='/admin'
-                element={
-                  <CheckAuth protected={true}>
-                    <Admin />
                   </CheckAuth>
                 }
               />
@@ -107,5 +179,5 @@ createRoot(document.getElementById('root')).render(
         </div>
       </ErrorBoundary>
     </BrowserRouter>
-  </StrictMode>,
+  </StrictMode>
 )

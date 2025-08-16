@@ -274,3 +274,340 @@ export const getTicketStats = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+export const getAssignedTickets = async (req, res) => {
+  try {
+    const user = req.user;
+    
+    // Only moderators can access this endpoint
+    if (user.role !== 'moderator') {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const tickets = await Ticket.find({ 
+      assignedTo: user._id 
+    })
+    .populate("createdBy", ["email", "_id"])
+    .populate("assignedTo", ["email", "_id"])
+    .sort({ createdAt: -1 });
+
+    return res.status(200).json(tickets);
+  } catch (error) {
+    console.error("Error fetching assigned tickets", error.message);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const addTicketComment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text, isInternal } = req.body;
+    const user = req.user;
+
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ message: "Comment text is required" });
+    }
+
+    const ticket = await Ticket.findById(id);
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+
+    // Check permissions
+    const canComment = 
+      user.role === 'admin' ||
+      (user.role === 'moderator' && ticket.assignedTo && ticket.assignedTo.toString() === user._id.toString()) ||
+      (user.role === 'user' && ticket.createdBy.toString() === user._id.toString());
+
+    if (!canComment) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    // Add comment
+    ticket.comments.push({
+      text: text.trim(),
+      author: user._id,
+      isInternal: isInternal || false,
+      createdAt: new Date()
+    });
+
+    // Set first response time if this is the first moderator/admin response
+    if (!ticket.firstResponseAt && (user.role === 'moderator' || user.role === 'admin')) {
+      ticket.firstResponseAt = new Date();
+    }
+
+    await ticket.save();
+
+    const updatedTicket = await Ticket.findById(id)
+      .populate("createdBy", ["email", "_id"])
+      .populate("assignedTo", ["email", "_id"])
+      .populate("comments.author", ["email", "_id"]);
+
+    // Send notification
+    await inngest.send({
+      name: "ticket/comment-added",
+      data: {
+        ticketId: id,
+        commentAuthor: user._id.toString(),
+        commentAuthorEmail: user.email,
+        commentText: text.trim(),
+        isInternal: isInternal || false,
+        ticketCreator: ticket.createdBy.toString()
+      },
+    });
+
+    return res.status(200).json({
+      message: "Comment added successfully",
+      ticket: updatedTicket
+    });
+  } catch (error) {
+    console.error("Error adding comment", error.message);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const getTicketComments = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    const ticket = await Ticket.findById(id)
+      .populate("comments.author", ["email", "_id", "role"])
+      .select("comments createdBy assignedTo");
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+
+    // Check permissions
+    const canView = 
+      user.role === 'admin' ||
+      (user.role === 'moderator' && ticket.assignedTo && ticket.assignedTo.toString() === user._id.toString()) ||
+      (user.role === 'user' && ticket.createdBy.toString() === user._id.toString());
+
+    if (!canView) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    // Filter comments based on user role
+    let comments = ticket.comments;
+    if (user.role === 'user') {
+      // Users can't see internal comments
+      comments = comments.filter(comment => !comment.isInternal);
+    }
+
+    return res.status(200).json({ comments });
+  } catch (error) {
+    console.error("Error fetching comments", error.message);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const getModeratorStats = async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (user.role !== 'moderator') {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const stats = await Ticket.aggregate([
+      { $match: { assignedTo: user._id } },
+      {
+        $group: {
+          _id: null,
+          totalAssigned: { $sum: 1 },
+          pending: { $sum: { $cond: [{ $eq: ["$status", "TODO"] }, 1, 0] } },
+          inProgress: { $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] } },
+          completed: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } },
+          highPriority: { $sum: { $cond: [{ $eq: ["$priority", "high"] }, 1, 0] } },
+          mediumPriority: { $sum: { $cond: [{ $eq: ["$priority", "medium"] }, 1, 0] } },
+          lowPriority: { $sum: { $cond: [{ $eq: ["$priority", "low"] }, 1, 0] } },
+          escalated: { $sum: { $cond: [{ $eq: ["$escalated", true] }, 1, 0] } },
+          avgCompletionTime: { 
+            $avg: { 
+              $cond: [
+                { $ne: ["$completedAt", null] },
+                { $divide: [{ $subtract: ["$completedAt", "$createdAt"] }, 1000 * 60 * 60 * 24] },
+                null
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    const result = stats[0] || {
+      totalAssigned: 0,
+      pending: 0,
+      inProgress: 0,
+      completed: 0,
+      highPriority: 0,
+      mediumPriority: 0,
+      lowPriority: 0,
+      escalated: 0,
+      avgCompletionTime: 0
+    };
+
+    // Get recent activity
+    const recentTickets = await Ticket.find({ 
+      assignedTo: user._id 
+    })
+    .populate("createdBy", ["email", "_id"])
+    .sort({ lastUpdatedAt: -1 })
+    .limit(5)
+    .select("title status priority lastUpdatedAt createdAt");
+
+    return res.status(200).json({
+      stats: result,
+      recentActivity: recentTickets
+    });
+  } catch (error) {
+    console.error("Error fetching moderator stats", error.message);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const getAdminDashboardData = async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (user.role !== 'admin') {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    // Get ticket statistics
+    const ticketStats = await Ticket.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalTickets: { $sum: 1 },
+          pending: { $sum: { $cond: [{ $eq: ["$status", "TODO"] }, 1, 0] } },
+          inProgress: { $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] } },
+          completed: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } },
+          highPriority: { $sum: { $cond: [{ $eq: ["$priority", "high"] }, 1, 0] } },
+          escalated: { $sum: { $cond: [{ $eq: ["$escalated", true] }, 1, 0] } },
+          unassigned: { $sum: { $cond: [{ $eq: ["$assignedTo", null] }, 1, 0] } },
+          avgResponseTime: { 
+            $avg: { 
+              $cond: [
+                { $ne: ["$firstResponseAt", null] },
+                { $divide: [{ $subtract: ["$firstResponseAt", "$createdAt"] }, 1000 * 60 * 60] },
+                null
+              ]
+            }
+          },
+          avgResolutionTime: { 
+            $avg: { 
+              $cond: [
+                { $ne: ["$completedAt", null] },
+                { $divide: [{ $subtract: ["$completedAt", "$createdAt"] }, 1000 * 60 * 60 * 24] },
+                null
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    // Get moderator performance
+    const moderatorStats = await Ticket.aggregate([
+      { $match: { assignedTo: { $ne: null } } },
+      {
+        $group: {
+          _id: "$assignedTo",
+          totalAssigned: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } },
+          inProgress: { $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] } },
+          pending: { $sum: { $cond: [{ $eq: ["$status", "TODO"] }, 1, 0] } },
+          escalated: { $sum: { $cond: [{ $eq: ["$escalated", true] }, 1, 0] } },
+          avgCompletionTime: { 
+            $avg: { 
+              $cond: [
+                { $ne: ["$completedAt", null] },
+                { $divide: [{ $subtract: ["$completedAt", "$assignedAt"] }, 1000 * 60 * 60 * 24] },
+                null
+              ]
+            }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "moderator"
+        }
+      },
+      {
+        $unwind: "$moderator"
+      },
+      {
+        $project: {
+          moderatorId: "$_id",
+          moderatorEmail: "$moderator.email",
+          moderatorSkills: "$moderator.skills",
+          totalAssigned: 1,
+          completed: 1,
+          inProgress: 1,
+          pending: 1,
+          escalated: 1,
+          avgCompletionTime: 1,
+          completionRate: { 
+            $cond: [
+              { $gt: ["$totalAssigned", 0] },
+              { $divide: ["$completed", "$totalAssigned"] },
+              0
+            ]
+          }
+        }
+      },
+      { $sort: { completionRate: -1 } }
+    ]);
+
+    // Get recent tickets
+    const recentTickets = await Ticket.find()
+      .populate("createdBy", ["email", "_id"])
+      .populate("assignedTo", ["email", "_id"])
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select("title status priority createdAt assignedTo escalated");
+
+    // Get skill distribution
+    const skillStats = await Ticket.aggregate([
+      { $unwind: "$relatedSkills" },
+      {
+        $group: {
+          _id: "$relatedSkills",
+          count: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 10 }
+    ]);
+
+    const ticketStatsResult = ticketStats[0] || {
+      totalTickets: 0,
+      pending: 0,
+      inProgress: 0,
+      completed: 0,
+      highPriority: 0,
+      escalated: 0,
+      unassigned: 0,
+      avgResponseTime: 0,
+      avgResolutionTime: 0
+    };
+
+    return res.status(200).json({
+      ticketStats: ticketStatsResult,
+      moderatorStats,
+      recentTickets,
+      skillStats
+    });
+  } catch (error) {
+    console.error("Error fetching admin dashboard data", error.message);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+}; 

@@ -1,3 +1,4 @@
+// backend/index.js (UPDATED)
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -7,10 +8,15 @@ import cors from "cors";
 import { serve } from "inngest/express";
 import userRoutes from "./routes/user.js";
 import ticketRoutes from "./routes/ticket.js";
+import solutionRoutes from "./routes/solution.js"; // NEW
 import { inngest } from "./inngest/client.js";
 import { onUserSignup } from "./inngest/functions/on-signup.js";
 import { onTicketCreated } from "./inngest/functions/on-ticket-created.js";
 import { onTicketStatusUpdated, onTicketReassigned } from "./inngest/functions/on-ticket-status-update.js";
+import { onSolutionSubmitted } from "./inngest/functions/on-solution-submitted.js"; // NEW
+import { onSolutionRated } from "./inngest/functions/on-solution-rated.js"; // NEW
+//import { onTicketCommentAdded } from "./inngest/functions/on-comment-added.js"; // NEW
+//import { onTicketEscalated } from "./inngest/functions/on-ticket-escalated.js"; // NEW
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -28,15 +34,20 @@ app.get("/health", (req, res) => {
   res.status(200).json({ 
     status: "OK", 
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development"
+    environment: process.env.NODE_ENV || "development",
+    services: {
+      database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+      inngest: "active"
+    }
   });
 });
 
 // API Routes
 app.use("/api/auth", userRoutes);
 app.use("/api/tickets", ticketRoutes);
+app.use("/api/solutions", solutionRoutes); // NEW
 
-// Inngest endpoint
+// Inngest endpoint with all functions
 app.use(
   "/api/inngest",
   serve({
@@ -45,7 +56,11 @@ app.use(
       onUserSignup, 
       onTicketCreated,
       onTicketStatusUpdated,
-      onTicketReassigned
+      onTicketReassigned,
+      onSolutionSubmitted, // NEW
+      onSolutionRated, // NEW
+      //onTicketCommentAdded, // NEW
+      //onTicketEscalated // NEW
     ],
   })
 );
@@ -68,7 +83,6 @@ app.use("/api/*", (req, res) => {
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI, {
-      // Connection options for better performance and reliability
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
@@ -115,12 +129,15 @@ connectDB().then(() => {
     console.log('📋 API available at http://localhost:' + PORT + '/api');
     console.log('⚡ Inngest endpoint at http://localhost:' + PORT + '/api/inngest');
     console.log('🏥 Health check at http://localhost:' + PORT + '/health');
+    console.log('🎯 Solution API at http://localhost:' + PORT + '/api/solutions');
     
     if (process.env.NODE_ENV === 'development') {
       console.log('\n🔧 Development mode features:');
       console.log('   - Detailed error messages');
       console.log('   - CORS enabled for localhost:5173');
       console.log('   - Enhanced logging');
+      console.log('   - Solution management system');
+      console.log('   - Rating system');
     }
   });
 
