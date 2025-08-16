@@ -1,5 +1,6 @@
 import { inngest } from "../inngest/client.js";
 import Ticket from "../models/ticket.js";
+import User from "../models/user.js"; 
 
 export const createTicket = async (req, res) => {
   try {
@@ -488,8 +489,8 @@ export const getAdminDashboardData = async (req, res) => {
           highPriority: { $sum: { $cond: [{ $eq: ["$priority", "high"] }, 1, 0] } },
           escalated: { $sum: { $cond: [{ $eq: ["$escalated", true] }, 1, 0] } },
           unassigned: { $sum: { $cond: [{ $eq: ["$assignedTo", null] }, 1, 0] } },
-          avgResponseTime: { 
-            $avg: { 
+          avgResponseTime: {
+            $avg: {
               $cond: [
                 { $ne: ["$firstResponseAt", null] },
                 { $divide: [{ $subtract: ["$firstResponseAt", "$createdAt"] }, 1000 * 60 * 60] },
@@ -497,8 +498,8 @@ export const getAdminDashboardData = async (req, res) => {
               ]
             }
           },
-          avgResolutionTime: { 
-            $avg: { 
+          avgResolutionTime: {
+            $avg: {
               $cond: [
                 { $ne: ["$completedAt", null] },
                 { $divide: [{ $subtract: ["$completedAt", "$createdAt"] }, 1000 * 60 * 60 * 24] },
@@ -511,60 +512,45 @@ export const getAdminDashboardData = async (req, res) => {
     ]);
 
     // Get moderator performance
-    const moderatorStats = await Ticket.aggregate([
-      { $match: { assignedTo: { $ne: null } } },
-      {
-        $group: {
-          _id: "$assignedTo",
-          totalAssigned: { $sum: 1 },
-          completed: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } },
-          inProgress: { $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] } },
-          pending: { $sum: { $cond: [{ $eq: ["$status", "TODO"] }, 1, 0] } },
-          escalated: { $sum: { $cond: [{ $eq: ["$escalated", true] }, 1, 0] } },
-          avgCompletionTime: { 
-            $avg: { 
-              $cond: [
-                { $ne: ["$completedAt", null] },
-                { $divide: [{ $subtract: ["$completedAt", "$assignedAt"] }, 1000 * 60 * 60 * 24] },
-                null
-              ]
+    const moderatorStats = await User.aggregate([
+        { $match: { role: 'moderator' } },
+        {
+            $lookup: {
+                from: "tickets",
+                localField: "_id",
+                foreignField: "assignedTo",
+                as: "assignedTickets"
             }
-          }
-        }
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "_id",
-          foreignField: "_id",
-          as: "moderator"
-        }
-      },
-      {
-        $unwind: "$moderator"
-      },
-      {
-        $project: {
-          moderatorId: "$_id",
-          moderatorEmail: "$moderator.email",
-          moderatorSkills: "$moderator.skills",
-          totalAssigned: 1,
-          completed: 1,
-          inProgress: 1,
-          pending: 1,
-          escalated: 1,
-          avgCompletionTime: 1,
-          completionRate: { 
-            $cond: [
-              { $gt: ["$totalAssigned", 0] },
-              { $divide: ["$completed", "$totalAssigned"] },
-              0
-            ]
-          }
-        }
-      },
-      { $sort: { completionRate: -1 } }
+        },
+        {
+            $lookup: {
+                from: "ratings",
+                localField: "_id",
+                foreignField: "moderatorId",
+                as: "ratings"
+            }
+        },
+        {
+            $project: {
+                moderatorId: "$_id",
+                moderatorEmail: "$email",
+                totalAssigned: { $size: "$assignedTickets" },
+                completed: {
+                    $size: {
+                        $filter: {
+                            input: "$assignedTickets",
+                            as: "ticket",
+                            cond: { $eq: ["$$ticket.status", "COMPLETED"] }
+                        }
+                    }
+                },
+                averageRating: { $avg: "$ratings.rating" },
+                totalRatings: { $size: "$ratings" }
+            }
+        },
+        { $sort: { totalAssigned: -1 } }
     ]);
+
 
     // Get recent tickets
     const recentTickets = await Ticket.find()
@@ -574,40 +560,15 @@ export const getAdminDashboardData = async (req, res) => {
       .limit(10)
       .select("title status priority createdAt assignedTo escalated");
 
-    // Get skill distribution
-    const skillStats = await Ticket.aggregate([
-      { $unwind: "$relatedSkills" },
-      {
-        $group: {
-          _id: "$relatedSkills",
-          count: { $sum: 1 },
-          completed: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } }
-        }
-      },
-      { $sort: { count: -1 } },
-      { $limit: 10 }
-    ]);
-
-    const ticketStatsResult = ticketStats[0] || {
-      totalTickets: 0,
-      pending: 0,
-      inProgress: 0,
-      completed: 0,
-      highPriority: 0,
-      escalated: 0,
-      unassigned: 0,
-      avgResponseTime: 0,
-      avgResolutionTime: 0
-    };
+    const ticketStatsResult = ticketStats[0] || { totalTickets: 0, pending: 0, inProgress: 0, completed: 0, highPriority: 0, escalated: 0, unassigned: 0, avgResponseTime: 0, avgResolutionTime: 0 };
 
     return res.status(200).json({
       ticketStats: ticketStatsResult,
       moderatorStats,
       recentTickets,
-      skillStats
     });
   } catch (error) {
     console.error("Error fetching admin dashboard data", error.message);
     return res.status(500).json({ message: "Internal Server Error" });
   }
-}; 
+};

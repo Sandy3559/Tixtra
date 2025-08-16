@@ -15,8 +15,7 @@ import { onTicketCreated } from "./inngest/functions/on-ticket-created.js";
 import { onTicketStatusUpdated, onTicketReassigned } from "./inngest/functions/on-ticket-status-update.js";
 import { onSolutionSubmitted } from "./inngest/functions/on-solution-submitted.js"; // NEW
 import { onSolutionRated } from "./inngest/functions/on-solution-rated.js"; // NEW
-//import { onTicketCommentAdded } from "./inngest/functions/on-comment-added.js"; // NEW
-//import { onTicketEscalated } from "./inngest/functions/on-ticket-escalated.js"; // NEW
+import { onTicketCommentAdded } from "./inngest/functions/on-comment-added.js"; // NEW
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -59,8 +58,7 @@ app.use(
       onTicketReassigned,
       onSolutionSubmitted, // NEW
       onSolutionRated, // NEW
-      //onTicketCommentAdded, // NEW
-      //onTicketEscalated // NEW
+      onTicketCommentAdded, // NEW
     ],
   })
 );

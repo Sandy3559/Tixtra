@@ -75,6 +75,14 @@ export default function Navbar() {
                     Dashboard
                   </Link>
                 </li>
+                 {user && user?.role === "moderator" && (
+                    <li>
+                      <Link to="/moderator-dashboard" className={isActiveRoute("/moderator-dashboard") ? "active" : ""}>
+                        <CogIcon className="w-4 h-4" />
+                        Moderator Dashboard
+                      </Link>
+                    </li>
+                  )}
                 {user && user?.role === "admin" && (
                   <li>
                     <Link to="/admin" className={isActiveRoute("/admin") ? "active" : ""}>
@@ -111,6 +119,17 @@ export default function Navbar() {
                 Dashboard
               </Link>
             </li>
+            {user && user?.role === "moderator" && (
+              <li>
+                <Link 
+                  to="/moderator-dashboard" 
+                  className={`gap-2 ${isActiveRoute("/moderator-dashboard") ? "bg-primary text-primary-content" : ""}`}
+                >
+                  <CogIcon className="w-4 h-4" />
+                  Moderator Dashboard
+                </Link>
+              </li>
+            )}
             {user && user?.role === "admin" && (
               <li>
                 <Link 
@@ -140,7 +159,6 @@ export default function Navbar() {
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            {/* Notifications (placeholder for future) */}
             <div className="indicator">
               <button className="btn btn-ghost btn-circle btn-sm">
                 <BellIcon className="w-5 h-5" />
@@ -148,7 +166,6 @@ export default function Navbar() {
               <span className="badge badge-xs badge-primary indicator-item"></span>
             </div>
 
-            {/* Profile Dropdown */}
             <div className="dropdown dropdown-end">
               <div 
                 tabIndex={0} 
