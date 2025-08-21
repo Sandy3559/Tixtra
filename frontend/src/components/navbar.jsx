@@ -21,7 +21,6 @@ export default function Navbar() {
 
   const logout = async () => {
     try {
-      // Call logout endpoint
       await fetch(`${import.meta.env.VITE_SERVER_URL}/auth/logout`, {
         method: "POST",
         headers: {

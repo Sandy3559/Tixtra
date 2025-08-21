@@ -1,4 +1,3 @@
-// frontend/src/pages/signup.jsx (MODIFIED)
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { 
@@ -127,12 +126,6 @@ export default function Signup() {
       setError("Skills are required for moderator accounts");
       return false;
     }
-
-    /*if (form.role === 'admin' && form.adminCode !== 'ADMIN2024') {
-      setError("Invalid admin access code");
-      return false;
-    }*/
-
     return true;
   };
 

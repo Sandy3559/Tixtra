@@ -1,4 +1,3 @@
-// frontend/src/pages/solution-page.jsx
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import SolutionForm from "../components/solution-form";

@@ -4,7 +4,7 @@ const analyzeTicket = async (ticket) => {
   try {
     const supportAgent = createAgent({
       model: gemini({
-        model: "gemini-2.0-flash-exp",  // Using a more stable model
+        model: "gemini-2.0-flash-exp",  
         apiKey: process.env.GEMINI_API_KEY,
       }),
       name: "AI Ticket Triage Assistant",

@@ -96,9 +96,6 @@ View ticket details in the admin panel.`;
           timestamp: new Date().toISOString(),
           ticketAge: ticket.ageInDays
         });
-
-        // Here you could send this data to an analytics service
-        // or store it in a separate analytics collection
       });
 
       return { success: true, ticketId, statusChange: `${oldStatus} → ${newStatus}` };

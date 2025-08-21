@@ -1,6 +1,6 @@
 import { inngest } from "../inngest/client.js";
 import Ticket from "../models/ticket.js";
-import User from "../models/user.js"; 
+import User from "../models/user.js";
 
 export const createTicket = async (req, res) => {
   try {
@@ -64,12 +64,18 @@ export const getTicket = async (req, res) => {
     if (user.role !== "user") {
       ticket = await Ticket.findById(req.params.id)
         .populate("assignedTo", ["email", "_id"])
-        .populate("createdBy", ["email", "_id"]);
+        .populate("createdBy", ["email", "_id"])
+        .populate("solution");
     } else {
       ticket = await Ticket.findOne({
         createdBy: user._id,
         _id: req.params.id,
-      }).select("title description status priority createdAt relatedSkills helpfulNotes");
+      })
+        .select(
+          "title description status priority createdAt relatedSkills helpfulNotes assignedTo solution"
+        )
+        .populate("assignedTo", ["email", "_id"])
+        .populate("solution");
     }
 
     if (!ticket) {
@@ -96,8 +102,9 @@ export const updateTicketStatus = async (req, res) => {
     // Validate status
     const validStatuses = ["TODO", "IN_PROGRESS", "COMPLETED"];
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ 
-        message: "Invalid status. Must be one of: TODO, IN_PROGRESS, COMPLETED" 
+      return res.status(400).json({
+        message:
+          "Invalid status. Must be one of: TODO, IN_PROGRESS, COMPLETED",
       });
     }
 
@@ -109,14 +116,15 @@ export const updateTicketStatus = async (req, res) => {
     // Update the ticket status
     const updatedTicket = await Ticket.findByIdAndUpdate(
       id,
-      { 
+      {
         status,
         lastUpdatedBy: user._id,
-        lastUpdatedAt: new Date()
+        lastUpdatedAt: new Date(),
       },
       { new: true }
-    ).populate("assignedTo", ["email", "_id"])
-     .populate("createdBy", ["email", "_id"]);
+    )
+      .populate("assignedTo", ["email", "_id"])
+      .populate("createdBy", ["email", "_id"]);
 
     // Send event for status update
     await inngest.send({
@@ -126,13 +134,13 @@ export const updateTicketStatus = async (req, res) => {
         oldStatus: ticket.status,
         newStatus: status,
         updatedBy: user._id.toString(),
-        updatedByEmail: user.email
+        updatedByEmail: user.email,
       },
     });
 
-    return res.status(200).json({ 
-      message: "Ticket status updated successfully", 
-      ticket: updatedTicket 
+    return res.status(200).json({
+      message: "Ticket status updated successfully",
+      ticket: updatedTicket,
     });
   } catch (error) {
     console.error("Error updating ticket status", error.message);
@@ -148,7 +156,9 @@ export const reassignTicket = async (req, res) => {
 
     // Only admins can reassign tickets
     if (user.role !== "admin") {
-      return res.status(403).json({ message: "Only admins can reassign tickets" });
+      return res
+        .status(403)
+        .json({ message: "Only admins can reassign tickets" });
     }
 
     const ticket = await Ticket.findById(id);
@@ -158,14 +168,15 @@ export const reassignTicket = async (req, res) => {
 
     const updatedTicket = await Ticket.findByIdAndUpdate(
       id,
-      { 
+      {
         assignedTo: assignedTo || null,
         lastUpdatedBy: user._id,
-        lastUpdatedAt: new Date()
+        lastUpdatedAt: new Date(),
       },
       { new: true }
-    ).populate("assignedTo", ["email", "_id"])
-     .populate("createdBy", ["email", "_id"]);
+    )
+      .populate("assignedTo", ["email", "_id"])
+      .populate("createdBy", ["email", "_id"]);
 
     // Send event for reassignment
     await inngest.send({
@@ -174,13 +185,13 @@ export const reassignTicket = async (req, res) => {
         ticketId: id,
         oldAssignee: ticket.assignedTo?.toString(),
         newAssignee: assignedTo,
-        reassignedBy: user._id.toString()
+        reassignedBy: user._id.toString(),
       },
     });
 
-    return res.status(200).json({ 
-      message: "Ticket reassigned successfully", 
-      ticket: updatedTicket 
+    return res.status(200).json({
+      message: "Ticket reassigned successfully",
+      ticket: updatedTicket,
     });
   } catch (error) {
     console.error("Error reassigning ticket", error.message);
@@ -202,8 +213,8 @@ export const updateTicketPriority = async (req, res) => {
     // Validate priority
     const validPriorities = ["low", "medium", "high"];
     if (!validPriorities.includes(priority?.toLowerCase())) {
-      return res.status(400).json({ 
-        message: "Invalid priority. Must be one of: low, medium, high" 
+      return res.status(400).json({
+        message: "Invalid priority. Must be one of: low, medium, high",
       });
     }
 
@@ -214,18 +225,19 @@ export const updateTicketPriority = async (req, res) => {
 
     const updatedTicket = await Ticket.findByIdAndUpdate(
       id,
-      { 
+      {
         priority: priority.toLowerCase(),
         lastUpdatedBy: user._id,
-        lastUpdatedAt: new Date()
+        lastUpdatedAt: new Date(),
       },
       { new: true }
-    ).populate("assignedTo", ["email", "_id"])
-     .populate("createdBy", ["email", "_id"]);
+    )
+      .populate("assignedTo", ["email", "_id"])
+      .populate("createdBy", ["email", "_id"]);
 
-    return res.status(200).json({ 
-      message: "Ticket priority updated successfully", 
-      ticket: updatedTicket 
+    return res.status(200).json({
+      message: "Ticket priority updated successfully",
+      ticket: updatedTicket,
     });
   } catch (error) {
     console.error("Error updating ticket priority", error.message);
@@ -250,13 +262,23 @@ export const getTicketStats = async (req, res) => {
           _id: null,
           total: { $sum: 1 },
           todo: { $sum: { $cond: [{ $eq: ["$status", "TODO"] }, 1, 0] } },
-          inProgress: { $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] } },
-          completed: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } },
-          highPriority: { $sum: { $cond: [{ $eq: ["$priority", "high"] }, 1, 0] } },
-          mediumPriority: { $sum: { $cond: [{ $eq: ["$priority", "medium"] }, 1, 0] } },
-          lowPriority: { $sum: { $cond: [{ $eq: ["$priority", "low"] }, 1, 0] } }
-        }
-      }
+          inProgress: {
+            $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] },
+          },
+          completed: {
+            $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] },
+          },
+          highPriority: {
+            $sum: { $cond: [{ $eq: ["$priority", "high"] }, 1, 0] },
+          },
+          mediumPriority: {
+            $sum: { $cond: [{ $eq: ["$priority", "medium"] }, 1, 0] },
+          },
+          lowPriority: {
+            $sum: { $cond: [{ $eq: ["$priority", "low"] }, 1, 0] },
+          },
+        },
+      },
     ]);
 
     const result = stats[0] || {
@@ -266,7 +288,7 @@ export const getTicketStats = async (req, res) => {
       completed: 0,
       highPriority: 0,
       mediumPriority: 0,
-      lowPriority: 0
+      lowPriority: 0,
     };
 
     return res.status(200).json(result);
@@ -279,18 +301,18 @@ export const getTicketStats = async (req, res) => {
 export const getAssignedTickets = async (req, res) => {
   try {
     const user = req.user;
-    
+
     // Only moderators can access this endpoint
-    if (user.role !== 'moderator') {
+    if (user.role !== "moderator") {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const tickets = await Ticket.find({ 
-      assignedTo: user._id 
+    const tickets = await Ticket.find({
+      assignedTo: user._id,
     })
-    .populate("createdBy", ["email", "_id"])
-    .populate("assignedTo", ["email", "_id"])
-    .sort({ createdAt: -1 });
+      .populate("createdBy", ["email", "_id"])
+      .populate("assignedTo", ["email", "_id"])
+      .sort({ createdAt: -1 });
 
     return res.status(200).json(tickets);
   } catch (error) {
@@ -315,10 +337,12 @@ export const addTicketComment = async (req, res) => {
     }
 
     // Check permissions
-    const canComment = 
-      user.role === 'admin' ||
-      (user.role === 'moderator' && ticket.assignedTo && ticket.assignedTo.toString() === user._id.toString()) ||
-      (user.role === 'user' && ticket.createdBy.toString() === user._id.toString());
+    const canComment =
+      user.role === "admin" ||
+      (user.role === "moderator" &&
+        ticket.assignedTo &&
+        ticket.assignedTo.toString() === user._id.toString()) ||
+      (user.role === "user" && ticket.createdBy.toString() === user._id.toString());
 
     if (!canComment) {
       return res.status(403).json({ message: "Access denied" });
@@ -329,11 +353,14 @@ export const addTicketComment = async (req, res) => {
       text: text.trim(),
       author: user._id,
       isInternal: isInternal || false,
-      createdAt: new Date()
+      createdAt: new Date(),
     });
 
     // Set first response time if this is the first moderator/admin response
-    if (!ticket.firstResponseAt && (user.role === 'moderator' || user.role === 'admin')) {
+    if (
+      !ticket.firstResponseAt &&
+      (user.role === "moderator" || user.role === "admin")
+    ) {
       ticket.firstResponseAt = new Date();
     }
 
@@ -353,13 +380,13 @@ export const addTicketComment = async (req, res) => {
         commentAuthorEmail: user.email,
         commentText: text.trim(),
         isInternal: isInternal || false,
-        ticketCreator: ticket.createdBy.toString()
+        ticketCreator: ticket.createdBy.toString(),
       },
     });
 
     return res.status(200).json({
       message: "Comment added successfully",
-      ticket: updatedTicket
+      ticket: updatedTicket,
     });
   } catch (error) {
     console.error("Error adding comment", error.message);
@@ -381,10 +408,12 @@ export const getTicketComments = async (req, res) => {
     }
 
     // Check permissions
-    const canView = 
-      user.role === 'admin' ||
-      (user.role === 'moderator' && ticket.assignedTo && ticket.assignedTo.toString() === user._id.toString()) ||
-      (user.role === 'user' && ticket.createdBy.toString() === user._id.toString());
+    const canView =
+      user.role === "admin" ||
+      (user.role === "moderator" &&
+        ticket.assignedTo &&
+        ticket.assignedTo.toString() === user._id.toString()) ||
+      (user.role === "user" && ticket.createdBy.toString() === user._id.toString());
 
     if (!canView) {
       return res.status(403).json({ message: "Access denied" });
@@ -392,9 +421,9 @@ export const getTicketComments = async (req, res) => {
 
     // Filter comments based on user role
     let comments = ticket.comments;
-    if (user.role === 'user') {
+    if (user.role === "user") {
       // Users can't see internal comments
-      comments = comments.filter(comment => !comment.isInternal);
+      comments = comments.filter((comment) => !comment.isInternal);
     }
 
     return res.status(200).json({ comments });
@@ -408,7 +437,7 @@ export const getModeratorStats = async (req, res) => {
   try {
     const user = req.user;
 
-    if (user.role !== 'moderator') {
+    if (user.role !== "moderator") {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -419,23 +448,38 @@ export const getModeratorStats = async (req, res) => {
           _id: null,
           totalAssigned: { $sum: 1 },
           pending: { $sum: { $cond: [{ $eq: ["$status", "TODO"] }, 1, 0] } },
-          inProgress: { $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] } },
-          completed: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } },
-          highPriority: { $sum: { $cond: [{ $eq: ["$priority", "high"] }, 1, 0] } },
-          mediumPriority: { $sum: { $cond: [{ $eq: ["$priority", "medium"] }, 1, 0] } },
-          lowPriority: { $sum: { $cond: [{ $eq: ["$priority", "low"] }, 1, 0] } },
+          inProgress: {
+            $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] },
+          },
+          completed: {
+            $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] },
+          },
+          highPriority: {
+            $sum: { $cond: [{ $eq: ["$priority", "high"] }, 1, 0] },
+          },
+          mediumPriority: {
+            $sum: { $cond: [{ $eq: ["$priority", "medium"] }, 1, 0] },
+          },
+          lowPriority: {
+            $sum: { $cond: [{ $eq: ["$priority", "low"] }, 1, 0] },
+          },
           escalated: { $sum: { $cond: [{ $eq: ["$escalated", true] }, 1, 0] } },
-          avgCompletionTime: { 
-            $avg: { 
+          avgCompletionTime: {
+            $avg: {
               $cond: [
                 { $ne: ["$completedAt", null] },
-                { $divide: [{ $subtract: ["$completedAt", "$createdAt"] }, 1000 * 60 * 60 * 24] },
-                null
-              ]
-            }
-          }
-        }
-      }
+                {
+                  $divide: [
+                    { $subtract: ["$completedAt", "$createdAt"] },
+                    1000 * 60 * 60 * 24,
+                  ],
+                },
+                null,
+              ],
+            },
+          },
+        },
+      },
     ]);
 
     const result = stats[0] || {
@@ -447,21 +491,21 @@ export const getModeratorStats = async (req, res) => {
       mediumPriority: 0,
       lowPriority: 0,
       escalated: 0,
-      avgCompletionTime: 0
+      avgCompletionTime: 0,
     };
 
     // Get recent activity
-    const recentTickets = await Ticket.find({ 
-      assignedTo: user._id 
+    const recentTickets = await Ticket.find({
+      assignedTo: user._id,
     })
-    .populate("createdBy", ["email", "_id"])
-    .sort({ lastUpdatedAt: -1 })
-    .limit(5)
-    .select("title status priority lastUpdatedAt createdAt");
+      .populate("createdBy", ["email", "_id"])
+      .sort({ lastUpdatedAt: -1 })
+      .limit(5)
+      .select("title status priority lastUpdatedAt createdAt");
 
     return res.status(200).json({
       stats: result,
-      recentActivity: recentTickets
+      recentActivity: recentTickets,
     });
   } catch (error) {
     console.error("Error fetching moderator stats", error.message);
@@ -473,7 +517,7 @@ export const getAdminDashboardData = async (req, res) => {
   try {
     const user = req.user;
 
-    if (user.role !== 'admin') {
+    if (user.role !== "admin") {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -484,73 +528,80 @@ export const getAdminDashboardData = async (req, res) => {
           _id: null,
           totalTickets: { $sum: 1 },
           pending: { $sum: { $cond: [{ $eq: ["$status", "TODO"] }, 1, 0] } },
-          inProgress: { $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] } },
-          completed: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } },
-          highPriority: { $sum: { $cond: [{ $eq: ["$priority", "high"] }, 1, 0] } },
+          inProgress: {
+            $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] },
+          },
+          completed: {
+            $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] },
+          },
+          highPriority: {
+            $sum: { $cond: [{ $eq: ["$priority", "high"] }, 1, 0] },
+          },
           escalated: { $sum: { $cond: [{ $eq: ["$escalated", true] }, 1, 0] } },
-          unassigned: { $sum: { $cond: [{ $eq: ["$assignedTo", null] }, 1, 0] } },
+          unassigned: {
+            $sum: { $cond: [{ $eq: ["$assignedTo", null] }, 1, 0] },
+          },
           avgResponseTime: {
             $avg: {
               $cond: [
                 { $ne: ["$firstResponseAt", null] },
-                { $divide: [{ $subtract: ["$firstResponseAt", "$createdAt"] }, 1000 * 60 * 60] },
-                null
-              ]
-            }
+                {
+                  $divide: [
+                    { $subtract: ["$firstResponseAt", "$createdAt"] },
+                    1000 * 60 * 60,
+                  ],
+                },
+                null,
+              ],
+            },
           },
           avgResolutionTime: {
             $avg: {
               $cond: [
                 { $ne: ["$completedAt", null] },
-                { $divide: [{ $subtract: ["$completedAt", "$createdAt"] }, 1000 * 60 * 60 * 24] },
-                null
-              ]
-            }
-          }
-        }
-      }
+                {
+                  $divide: [
+                    { $subtract: ["$completedAt", "$createdAt"] },
+                    1000 * 60 * 60 * 24,
+                  ],
+                },
+                null,
+              ],
+            },
+          },
+        },
+      },
     ]);
 
     // Get moderator performance
     const moderatorStats = await User.aggregate([
-        { $match: { role: 'moderator' } },
-        {
-            $lookup: {
-                from: "tickets",
-                localField: "_id",
-                foreignField: "assignedTo",
-                as: "assignedTickets"
-            }
+      { $match: { role: "moderator" } },
+      {
+        $lookup: {
+          from: "tickets",
+          localField: "_id",
+          foreignField: "assignedTo",
+          as: "assignedTickets",
         },
-        {
-            $lookup: {
-                from: "ratings",
-                localField: "_id",
-                foreignField: "moderatorId",
-                as: "ratings"
-            }
+      },
+      {
+        $project: {
+          moderatorId: "$_id",
+          moderatorEmail: "$email",
+          totalAssigned: { $size: "$assignedTickets" },
+          completed: {
+            $size: {
+              $filter: {
+                input: "$assignedTickets",
+                as: "ticket",
+                cond: { $eq: ["$$ticket.status", "COMPLETED"] },
+              },
+            },
+          },
         },
-        {
-            $project: {
-                moderatorId: "$_id",
-                moderatorEmail: "$email",
-                totalAssigned: { $size: "$assignedTickets" },
-                completed: {
-                    $size: {
-                        $filter: {
-                            input: "$assignedTickets",
-                            as: "ticket",
-                            cond: { $eq: ["$$ticket.status", "COMPLETED"] }
-                        }
-                    }
-                },
-                averageRating: { $avg: "$ratings.rating" },
-                totalRatings: { $size: "$ratings" }
-            }
-        },
-        { $sort: { totalAssigned: -1 } }
+      },
+      { $sort: { totalAssigned: -1 } },
     ]);
-
 
     // Get recent tickets
     const recentTickets = await Ticket.find()
@@ -560,7 +611,17 @@ export const getAdminDashboardData = async (req, res) => {
       .limit(10)
       .select("title status priority createdAt assignedTo escalated");
 
-    const ticketStatsResult = ticketStats[0] || { totalTickets: 0, pending: 0, inProgress: 0, completed: 0, highPriority: 0, escalated: 0, unassigned: 0, avgResponseTime: 0, avgResolutionTime: 0 };
+    const ticketStatsResult = ticketStats[0] || {
+      totalTickets: 0,
+      pending: 0,
+      inProgress: 0,
+      completed: 0,
+      highPriority: 0,
+      escalated: 0,
+      unassigned: 0,
+      avgResponseTime: 0,
+      avgResolutionTime: 0,
+    };
 
     return res.status(200).json({
       ticketStats: ticketStatsResult,

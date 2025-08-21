@@ -1,4 +1,3 @@
-// backend/models/solution.js
 import mongoose from 'mongoose';
 
 const solutionSchema = new mongoose.Schema({
@@ -6,7 +5,7 @@ const solutionSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "Ticket",
         required: true,
-        unique: true // One solution per ticket
+        unique: true 
     },
     moderatorId: {
         type: mongoose.Schema.Types.ObjectId,

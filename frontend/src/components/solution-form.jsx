@@ -1,4 +1,3 @@
-// frontend/src/components/solution-form.jsx
 import { useState } from "react";
 import { 
   PlusIcon,
@@ -38,7 +37,6 @@ export default function SolutionForm({
       [name]: type === 'checkbox' ? checked : value
     });
     
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors({ ...errors, [name]: null });
     }
@@ -61,7 +59,6 @@ export default function SolutionForm({
 
   const removeStep = (index) => {
     const newSteps = form.stepByStepGuide.filter((_, i) => i !== index);
-    // Renumber steps
     const renumberedSteps = newSteps.map((step, i) => ({
       ...step,
       stepNumber: i + 1

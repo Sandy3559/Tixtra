@@ -134,7 +134,6 @@ Please log in to the system to view full details.`
             console.log(`📧 Notification sent to: ${moderator.email}`);
           } catch (emailError) {
             console.error("❌ Email sending failed:", emailError.message);
-            // Don't fail the entire process if email fails
           }
         }
       });

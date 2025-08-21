@@ -1,4 +1,3 @@
-// frontend/src/pages/moderator-dashboard.jsx
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { 
@@ -57,7 +56,7 @@ export default function ModeratorDashboard() {
         assigned: ticketsArray.filter(t => t.status === 'TODO').length,
         inProgress: ticketsArray.filter(t => t.status === 'IN_PROGRESS').length,
         completed: ticketsArray.filter(t => t.status === 'COMPLETED').length,
-        avgRating: 4.2, // This would come from ratings calculation
+        avgRating: 4.2, 
         totalSolutions: ticketsArray.filter(t => t.status === 'COMPLETED').length
       });
     } catch (err) {

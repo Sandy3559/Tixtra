@@ -6,11 +6,9 @@ import { inngest } from "../inngest/client.js";
 export const signup = async (req, res) => {
   const { email, password, role = "user", skills = [], adminCode } = req.body;
   try {
-    // If the user is trying to sign up as an admin
     if (role === "admin") {
       const adminCount = await User.countDocuments({ role: "admin" });
 
-      // If there are existing admins, an admin code is required
       if (adminCount > 0) {
         if (adminCode !== process.env.ADMIN_ACCESS_CODE) {
           return res.status(403).json({ error: "Invalid admin access code" });
