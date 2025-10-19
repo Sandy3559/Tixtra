@@ -51,7 +51,6 @@ export default function Signup() {
     setForm({ ...form, [name]: value });
     if (error) setError("");
 
-    // Check password strength
     if (name === "password") {
       setPasswordStrength(checkPasswordStrength(value));
     }
@@ -150,7 +149,6 @@ export default function Signup() {
         skills: skillsArray
       };
 
-      // Add role-specific data
       if (form.role === 'moderator') {
         signupData.experience = form.experience;
         signupData.specialization = form.specialization;
@@ -173,14 +171,20 @@ export default function Signup() {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
         
+        // --- CHANGED START ---
         // Redirect based on role
-        if (data.user.role === 'admin') {
-          navigate("/admin");
-        } else if (data.user.role === 'moderator') {
-          navigate("/moderator-dashboard");
-        } else {
-          navigate("/");
+        switch (data.user.role) {
+          case 'admin':
+            navigate("/admin");
+            break;
+          case 'moderator':
+            navigate("/moderator-dashboard");
+            break;
+          default:
+            navigate("/tickets");
+            break;
         }
+        // --- CHANGED END ---
       } else {
         setError(data.error || data.message || "Signup failed");
       }

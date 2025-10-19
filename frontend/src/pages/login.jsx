@@ -40,7 +40,21 @@ export default function Login() {
       if (res.ok) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
-        navigate("/");
+        
+        // --- CHANGED START ---
+        // Redirect based on user role
+        switch (data.user.role) {
+          case 'admin':
+            navigate("/admin");
+            break;
+          case 'moderator':
+            navigate("/moderator-dashboard");
+            break;
+          default:
+            navigate("/tickets");
+            break;
+        }
+        // --- CHANGED END ---
       } else {
         setError(data.error || data.message || "Login failed");
       }
@@ -186,7 +200,7 @@ export default function Login() {
               </div>
               <div className="text-center mt-2">
                 <span className="text-base-content/60">Password: </span>
-                <code className="bg-base-300 px-2 py-1 rounded">demo123</code>
+                <code className="bg-base-300 px-2 py-1 rounded">demo12345</code>
               </div>
             </div>
           </div>

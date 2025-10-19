@@ -47,7 +47,7 @@ app.get("/health", (req, res) => {
 // API Routes
 app.use("/api/auth", userRoutes);
 app.use("/api/tickets", ticketRoutes);
-app.use("/api/solutions", solutionRoutes); // NEW
+app.use("/api/solutions", solutionRoutes); 
 
 // Inngest endpoint with all functions
 app.use(

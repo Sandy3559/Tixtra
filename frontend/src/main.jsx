@@ -15,6 +15,7 @@ import ErrorBoundary from "./components/error-boundary.jsx";
 import NotFound from "./pages/not-found.jsx";
 import ModeratorTicketDetails from "./pages/moderator-ticket-details.jsx";
 import SolutionPage from "./pages/solution-page.jsx";
+import LandingPage from "./pages/landing-page.jsx";
 
 // Toast notification component
 function ToastContainer() {
@@ -56,12 +57,15 @@ createRoot(document.getElementById("root")).render(
           <ToastContainer />
           <main className="pb-4">
             <Routes>
+              {/* Landing Page */}
+              <Route path="/" element={<LandingPage />} />
+
               {/* Role Selection */}
               <Route path="/role-selection" element={<RoleSelection />} />
 
               {/* User Routes */}
               <Route
-                path="/"
+                path="/tickets"
                 element={
                   <CheckAuth protected={true}>
                     <Tickets />

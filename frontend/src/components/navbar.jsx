@@ -32,7 +32,7 @@ export default function Navbar() {
     } finally {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      navigate("/login");
+      navigate("/"); // Redirect to the landing page after logout
     }
   };
 
@@ -57,7 +57,8 @@ export default function Navbar() {
   };
 
   return (
-    <div className="navbar bg-base-100 shadow-lg border-b border-base-200">
+    // --- THIS IS THE ONLY LINE THAT WAS CHANGED ---
+    <div className="navbar bg-base-100 shadow-lg border-b border-base-200 px-4 sm:px-6 lg:px-8">
       <div className="navbar-start">
         <div className="dropdown">
           <div tabIndex={0} role="button" className="btn btn-ghost lg:hidden">
@@ -69,7 +70,7 @@ export default function Navbar() {
             {token && (
               <>
                 <li>
-                  <Link to="/" className={isActiveRoute("/") ? "active" : ""}>
+                  <Link to="/tickets" className={isActiveRoute("/tickets") ? "active" : ""}>
                     <HomeIcon className="w-4 h-4" />
                     Dashboard
                   </Link>
@@ -110,9 +111,9 @@ export default function Navbar() {
         {token && (
           <ul className="menu menu-horizontal px-1 gap-1">
             <li>
-              <Link 
-                to="/" 
-                className={`gap-2 ${isActiveRoute("/") ? "bg-primary text-primary-content" : ""}`}
+              <Link
+                to="/tickets" 
+                className={`gap-2 ${isActiveRoute("/tickets") ? "bg-primary text-primary-content" : ""}`}
               >
                 <HomeIcon className="w-4 h-4" />
                 Dashboard

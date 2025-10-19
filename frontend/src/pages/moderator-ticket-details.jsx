@@ -13,6 +13,7 @@ import {
   ChatBubbleLeftRightIcon,
   DocumentTextIcon,
   PlusIcon,
+  LightBulbIcon,
 } from "@heroicons/react/24/outline";
 
 export default function ModeratorTicketDetails() {
@@ -236,6 +237,76 @@ export default function ModeratorTicketDetails() {
                 </div>
               </div>
             )}
+            
+            {/* ***CHANGE MADE HERE*** */}
+            {/* Solution Section */}
+            {ticket.status === "COMPLETED" && ticket.solution && (
+              <div className="card bg-base-100 shadow-lg">
+                <div className="card-body">
+                  <div className="flex items-center gap-2 mb-4">
+                    <LightBulbIcon className="w-5 h-5 text-success" />
+                    <h2 className="card-title">Solution</h2>
+                  </div>
+                  <div className="prose prose-sm max-w-none">
+                    <ReactMarkdown>{ticket.solution.solution}</ReactMarkdown>
+                  </div>
+                  {ticket.solution.stepByStepGuide &&
+                    ticket.solution.stepByStepGuide.length > 0 && (
+                      <>
+                        <div className="divider"></div>
+                        <h3 className="text-lg font-semibold">
+                          Step-by-Step Guide
+                        </h3>
+                        {ticket.solution.stepByStepGuide.map((step, index) => (
+                          <div
+                            key={index}
+                            className="prose prose-sm max-w-none"
+                          >
+                            <h4>Step {step.stepNumber}</h4>
+                            <p>{step.description}</p>
+                            {step.codeExample && (
+                              <pre>
+                                <code>{step.codeExample}</code>
+                              </pre>
+                            )}
+                            {step.notes && (
+                              <p>
+                                <em>Note: {step.notes}</em>
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  {ticket.solution.additionalResources &&
+                    ticket.solution.additionalResources.length > 0 && (
+                      <>
+                        <div className="divider"></div>
+                        <h3 className="text-lg font-semibold">
+                          Additional Resources
+                        </h3>
+                        <ul>
+                          {ticket.solution.additionalResources.map(
+                            (resource, index) => (
+                              <li key={index}>
+                                <a
+                                  href={resource.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  {resource.title}
+                                </a>
+                                : {resource.description}
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </>
+                    )}
+                </div>
+              </div>
+            )}
+            {/* ***END OF CHANGE*** */}
 
             {/* Comments Section (Placeholder for future enhancement) */}
             <div className="card bg-base-100 shadow-lg">
